@@ -101,17 +101,20 @@ func FetchConsultant(email, tableName string, dynamoClient dynamodbiface.DynamoD
 	return item, nil
 }
 
-func FetchConsultants(tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (*[]Consultant, error) {
+func FetchConsultants(tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (*[]Contact, error) {
 	// query based on email as example
 	input := &dynamodb.ScanInput{
 		TableName: aws.String(tableName),
 	}
-
+	// not good practice do scan of all the DB
 	result, err := dynamoClient.Scan(input)
 	if err != nil {
 		return nil, errors.New(ErrorFailedToFetchRecord)
 	}
-	item := new([]Consultant)
+	item := new([]Contact)
 	err = dynamodbattribute.UnmarshalListOfMaps(result.Items, item)
+	if err != nil {
+		return nil, errors.New(ErrorFailedToFetchRecord)
+	}
 	return item, nil
 }
