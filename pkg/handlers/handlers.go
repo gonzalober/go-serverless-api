@@ -37,6 +37,44 @@ func GetConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoCl
 	return apiResponse(http.StatusOK, result)
 }
 
+func DeleteConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (
+	*events.APIGatewayProxyResponse, error,
+) {
+
+	_, err := consultant.DeleteConsultant(req, tableName, dynamoClient)
+	if err != nil {
+		return apiResponse(http.StatusBadRequest, ErrorBody{
+			aws.String(err.Error()),
+		})
+	}
+	return apiResponse(http.StatusOK, nil)
+}
+
+func UpdateConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (
+	*events.APIGatewayProxyResponse, error,
+) {
+
+	result, err := consultant.UpdateConsultant(req, tableName, dynamoClient)
+	if err != nil {
+		return apiResponse(http.StatusBadRequest, ErrorBody{
+			aws.String(err.Error()),
+		})
+	}
+	return apiResponse(http.StatusOK, result)
+}
+
+func PostConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (
+	*events.APIGatewayProxyResponse, error,
+) {
+	result, err := consultant.CreateConsultant(req, tableName, dynamoClient)
+	if err != nil {
+		return apiResponse(http.StatusBadRequest, ErrorBody{
+			aws.String(err.Error()),
+		})
+	}
+	return apiResponse(http.StatusCreated, result)
+}
+
 func UnhandledMethod() (*events.APIGatewayProxyResponse, error) {
 	return apiResponse(http.StatusMethodNotAllowed, ErrorMethodNotAllowed)
 }

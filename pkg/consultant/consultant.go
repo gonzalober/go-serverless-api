@@ -1,19 +1,32 @@
 package consultant
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/go-serverless-api/pkg/validators"
 	"github.com/gofrs/uuid"
 )
 
 var (
-	ErrorFailedToFetchRecord = "failed to fetch"
+	ErrorFailedToFetchRecord          = "failed to fetch"
+	ErrorInvalidConsultantInfo        = "failed to unmarshall the object"
+	ErrorInvalidConsultantData        = "invalid consultant data"
+	ErrorCouldNotDeleteConsultant     = "the consultant wasn't deleted"
+	ErrorCouldNotSaveConsultant       = "the consultant wasn't updated"
+	ErrorConsultantAlreadyExists      = "consultant is already registered"
+	ErrorConsultanDoesNotExist        = "consultant is not registered"
+	ErrorInvalidEmail                 = "invalid email"
+	ErrorFailedToMarshall             = "faild to marshall the object"
+	ErrorCouldNotSaveConsultantDynamo = "could not save the object in dynamo"
 )
 
 type Consultant struct {
@@ -31,6 +44,7 @@ type Consultant struct {
 	DesiredSkills   []DesiredSkill `json:"desiredSkills"`
 	ProfilePic      string         `json:"profilePic"`
 	ContactInfo     []Contact      `json:"contactInfo"`
+	Email           string         `json:"email"`
 	PreferWFH       bool           `json:"preferWFH"`
 	CurrentEmployee bool           `json:"currentEmployee"`
 	CurrentStatus   string         `json:"currentStatus"`
@@ -117,4 +131,87 @@ func FetchConsultants(tableName string, dynamoClient dynamodbiface.DynamoDBAPI) 
 		return nil, errors.New(ErrorFailedToFetchRecord)
 	}
 	return item, nil
+}
+
+func DeleteConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (*string, error) {
+	email := req.QueryStringParameters["email"]
+	input := &dynamodb.DeleteItemInput{
+		Key: map[string]*dynamodb.AttributeValue{
+			"email": {
+				S: aws.String(email),
+			},
+		},
+		TableName: aws.String(tableName),
+	}
+	resp, err := dynamoClient.DeleteItem(input)
+	if err != nil {
+		return nil, errors.New(ErrorConsultanDoesNotExist)
+	}
+
+	response := resp.String()
+	fmt.Sprintf("Deleted %s", response)
+	return &response, nil
+}
+
+func UpdateConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (*Consultant, error) {
+
+	var c Consultant
+	if err := json.Unmarshal([]byte(req.Body), &c); err != nil {
+		return nil, errors.New(ErrorInvalidEmail)
+	}
+
+	consul, _ := FetchConsultant(c.Email, tableName, dynamoClient)
+
+	if consul != nil && len(consul.Email) == 0 {
+		return nil, errors.New(ErrorConsultanDoesNotExist)
+	}
+
+	av, err := dynamodbattribute.MarshalMap(c)
+
+	if err != nil {
+		return nil, errors.New(ErrorFailedToMarshall)
+	}
+	input := &dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(tableName),
+	}
+	_, err = dynamoClient.PutItem(input)
+	if err != nil {
+		return nil, errors.New(ErrorCouldNotSaveConsultantDynamo)
+	}
+	return &c, nil
+}
+
+func CreateConsultant(req events.APIGatewayProxyRequest, tableName string, dynamoClient dynamodbiface.DynamoDBAPI) (*Consultant, error) {
+	var c Consultant
+
+	if err := json.Unmarshal([]byte(req.Body), &c); err != nil {
+		return nil, errors.New(ErrorInvalidConsultantInfo)
+	}
+
+	if !validators.IsEmaiValid(c.Email) {
+		return nil, errors.New(ErrorInvalidEmail)
+	}
+
+	currentConsultant, _ := FetchConsultant(c.Email, tableName, dynamoClient)
+	if currentConsultant != nil && len(currentConsultant.Email) != 0 {
+		return nil, errors.New(ErrorConsultantAlreadyExists)
+	}
+	av, err := dynamodbattribute.MarshalMap(c)
+	if err != nil {
+		return nil, errors.New(ErrorFailedToMarshall)
+	}
+	input :=
+		&dynamodb.PutItemInput{
+			Item:      av,
+			TableName: aws.String(tableName),
+		}
+
+	_, err = dynamoClient.PutItem(input)
+	if err != nil {
+		return nil, errors.New(ErrorCouldNotSaveConsultantDynamo)
+	}
+
+	return &c, nil
+
 }

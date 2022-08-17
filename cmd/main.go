@@ -35,6 +35,12 @@ func handler(req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse
 	switch req.HTTPMethod {
 	case "GET":
 		return handlers.GetConsultant(req, tableName, dynamoClient)
+	case "DELETE":
+		return handlers.DeleteConsultant(req, tableName, dynamoClient)
+	case "PUT":
+		return handlers.UpdateConsultant(req, tableName, dynamoClient)
+	case "POST":
+		return handlers.PostConsultant(req, tableName, dynamoClient)
 	default:
 		return handlers.UnhandledMethod()
 	}
